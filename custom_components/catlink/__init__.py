@@ -618,6 +618,9 @@ class ScooperDevice(Device):
             "logs": self.logs,
         }
 
+    def info_attrs(self):
+        return self.detail
+
     def convert_litter_info(self, litter_status, temp, humidity):
         short_info = f"猫砂{litter_status} {temp}℃ H{humidity}%"
         return short_info
@@ -671,7 +674,7 @@ class ScooperDevice(Device):
             },
             "info": {
                 "icon": "mdi:bell",
-                "state_attrs": self.last_log_attrs,
+                "state_attrs": self.info_attrs,
             },
 
         }
@@ -693,14 +696,14 @@ class FeederDevice(Device):
             update_method=self.update_logs,
             update_interval=datetime.timedelta(minutes=1),
         )
-        self.coordinator_details = DataUpdateCoordinator(
+        self.coordinator_detail = DataUpdateCoordinator(
             self.account.hass,
             _LOGGER,
             name=f"{DOMAIN}-{self.id}-details",
             update_method=self.update_device_detail,
             update_interval=datetime.timedelta(minutes=1),
         )
-        await self.coordinator_details.async_config_entry_first_refresh()
+        await self.coordinator_detail.async_config_entry_first_refresh()
         await self.coordinator_logs.async_config_entry_first_refresh()
 
     @property
@@ -716,6 +719,15 @@ class FeederDevice(Device):
         if not log:
             return None
         return f"{log.get('time')} {log.get('event')}"
+
+    @property
+    def info(self):
+        return self.detail.get("currentErrorMessage")
+
+    @property
+    def status(self):
+        food_weight = self.detail.get("weight", 0)
+        return f"食碗余量{food_weight}g"
 
     def last_log_attrs(self):
         log = self._last_log
@@ -743,12 +755,6 @@ class FeederDevice(Device):
     @property
     def name(self):
         return self.data.get("deviceName", "")
-
-    @property
-    def info(self):
-        return self.detail.get("currentMessage") or self.data.get(
-            "currentErrorMessage", ""
-        )
 
     async def update_device_detail(self):
         api = "token/device/feeder/detail"
@@ -807,7 +813,7 @@ class FeederDevice(Device):
     @property
     def hass_sensor(self):
         return {
-            "state": {
+            "status": {
                 "icon": "mdi:information",
                 "state_attrs": self.state_attrs,
             },
@@ -829,10 +835,6 @@ class FeederDevice(Device):
                 "async_turn_on": self.food_out,
             }
         }
-
-    @property
-    def state(self):
-        return self.detail.get("foodOutStatus")
 
     def state_attrs(self):
         return {
@@ -1062,3 +1064,4 @@ class CatlinkBinaryEntity(CatlinkEntity):
     @property
     def state(self):
         return STATE_ON if self._attr_is_on else STATE_OFF
+
